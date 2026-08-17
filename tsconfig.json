@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // One config, and it emits: the tests run from `dist/` (see the `//test` note
+  // in package.json), so they have to be compiled alongside the sources rather
+  // than split off into a separate type-check-only pass. `files` in package.json
+  // is what keeps them out of the published tarball.
+  "compilerOptions": {
+    "target": "ES2022",
+    // NodeNext module + resolution. The package has no `"type": "module"`, so
+    // files stay CommonJS — but NodeNext preserves real dynamic `import()` (used
+    // to lazy-load the ESM-first deepagents/langchain deps) and reads their
+    // `exports` maps for type resolution.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

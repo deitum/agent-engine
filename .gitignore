@@ -1,0 +1,20 @@
+# Logs and process files
+logs
+*.log
+npm-debug.log*
+pids
+*.pid
+*.seed
+
+# Dependencies and build output
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Editors and OS
+.idea
+.vscode
+*.sublime-project
+*.sublime-workspace
+.DS_Store

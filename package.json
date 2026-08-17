@@ -1,0 +1,123 @@
+{
+  "name": "@deitum/agent-engine",
+  "version": "0.2.0",
+  "description": "Local agent engine daemon — MCP tools, deep agents, a Docker coding sandbox, skills, web search and model calls, all on the user's own machine.",
+  "keywords": [
+    "agent",
+    "agents",
+    "mcp",
+    "model-context-protocol",
+    "llm",
+    "deep-agents",
+    "coding-agent",
+    "sandbox",
+    "daemon"
+  ],
+  "author": "Zvyagin Danila",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deitum/agent-engine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/deitum/agent-engine/issues"
+  },
+  "homepage": "https://github.com/deitum/agent-engine#readme",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@10.9.8",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "type": "commonjs",
+  "bin": {
+    "agent-engine": "dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts/index.d.ts",
+      "default": "./dist/contracts/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "//typesVersions": "Node honours `exports` at runtime, but TypeScript only reads it under NodeNext/Bundler resolution — and a consumer on the legacy `Node` setting (Nest's default) would see the subpaths as untyped. This is the standard pointer for those; drop it once every consumer is on a modern resolution.",
+  "typesVersions": {
+    "*": {
+      "contracts": [
+        "./dist/contracts/index.d.ts"
+      ],
+      "client": [
+        "./dist/client/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.tsbuildinfo",
+    "README.md",
+    "LICENSE"
+  ],
+  "//test": "node:test, run from `dist/` rather than a runner over the sources: the daemon's own code is CommonJS-under-NodeNext and lazy-loads ESM-first dependencies with real dynamic `import()`, which is exactly what the emitted output does and what a transform-on-the-fly runner would rewrite. `files` keeps the compiled tests out of the tarball.",
+  "scripts": {
+    "clean": "rimraf dist coverage *.tsbuildinfo",
+    "build": "tsc --build",
+    "dev": "tsc --build --watch",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "tsc --build && node --test \"dist/**/*.test.js\"",
+    "test:coverage": "tsc --build && node --test --experimental-test-coverage --enable-source-maps \"dist/**/*.test.js\"",
+    "check:package": "publint --strict && attw --pack . --entrypoints . ./client ./contracts",
+    "verify": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run check:package",
+    "prepack": "npm run clean && npm run build",
+    "changeset": "changeset",
+    "changeset:version": "changeset version && npm install --package-lock-only",
+    "release": "changeset publish"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.2.4",
+    "@langchain/langgraph": "^1.4.9",
+    "@langchain/langgraph-checkpoint": "^1.1.3",
+    "@langchain/langgraph-sdk": "^1.9.28",
+    "@langchain/openai": "^1.5.5",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "deepagents": "^1.12.1",
+    "jsonc-parser": "^3.3.1",
+    "langchain": "^1.5.4",
+    "langsmith": "^0.7.17",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@changesets/cli": "^2.31.1",
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^26.1.2",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.17.1",
+    "globals": "^17.9.0",
+    "prettier": "^3.9.6",
+    "publint": "^0.3.23",
+    "rimraf": "^6.1.3",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}
