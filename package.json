@@ -1,6 +1,6 @@
 {
   "name": "@deitum/agent-engine",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local agent engine daemon — MCP tools, deep agents, a Docker coding sandbox, skills, web search and model calls, all on the user's own machine.",
   "keywords": [
     "agent",
