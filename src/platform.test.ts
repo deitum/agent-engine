@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { after, before, describe, test } from 'node:test';
+import { describe, test } from 'node:test';
 
 import {
   engineHome,
@@ -129,38 +126,33 @@ describe('hostShellPromptSection', () => {
 });
 
 /**
- * `engineHome` reads the home directory, so these point `HOME` at a temp one of
- * their own (`homedir()` reads it on POSIX) rather than asserting against
- * whatever the machine running the suite happens to have.
+ * `engineHome` takes the home directory as an argument, so these hand it one
+ * rather than asserting against whatever the machine running the suite has.
+ *
+ * Passing it beats pointing `HOME` at a temp directory: `homedir()` reads `HOME`
+ * only on POSIX — on Windows it reads `USERPROFILE` and ignores `HOME` entirely,
+ * so an env-based fixture silently asserts against the real profile there.
  */
 describe('engineHome', () => {
-  let home: string;
-  let previousHome: string | undefined;
-
-  before(async () => {
-    previousHome = process.env.HOME;
-    home = await mkdtemp(join(tmpdir(), 'engine-home-'));
-    process.env.HOME = home;
-  });
-
-  after(async () => {
-    if (previousHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = previousHome;
-    }
-    await rm(home, { recursive: true, force: true });
-  });
+  const posixHome = '/home/agent';
+  const windowsHome = 'C:\\Users\\agent';
 
   test('defaults to ~/.agent-engine', () => {
-    assert.equal(engineHome({}), join(home, '.agent-engine'));
+    assert.equal(engineHome({}, posixHome, 'linux'), '/home/agent/.agent-engine');
+    assert.equal(engineHome({}, windowsHome, 'win32'), 'C:\\Users\\agent\\.agent-engine');
   });
 
   test('honours the override, the escape hatch for a non-ASCII Windows profile', () => {
-    assert.equal(engineHome({ AGENT_ENGINE_HOME: 'D:\\engine' }), 'D:\\engine');
+    assert.equal(
+      engineHome({ AGENT_ENGINE_HOME: 'D:\\engine' }, windowsHome, 'win32'),
+      'D:\\engine',
+    );
   });
 
   test('an empty or blank override is not an override', () => {
-    assert.equal(engineHome({ AGENT_ENGINE_HOME: '   ' }), join(home, '.agent-engine'));
+    assert.equal(
+      engineHome({ AGENT_ENGINE_HOME: '   ' }, posixHome, 'linux'),
+      '/home/agent/.agent-engine',
+    );
   });
 });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
@@ -16,6 +16,19 @@ import {
  * file» — a user's comments, their formatting, and the 4000 lines of project
  * history that `~/.claude.json` also holds.
  */
+
+/**
+ * Backdates a file, so that the write which follows is unmistakably newer.
+ *
+ * Two writes a few microseconds apart can share an mtime: NTFS records it far
+ * more coarsely than ext4 or APFS, so on Windows the guard sees an unchanged
+ * timestamp and the test reads as «the mtime check is broken» when it is the
+ * clock that is imprecise.
+ */
+function backdate(path: string): void {
+  const earlier = new Date(Date.now() - 10_000);
+  utimesSync(path, earlier, earlier);
+}
 
 let root: string;
 const configPath = () => join(root, 'kilo.jsonc');
@@ -74,6 +87,7 @@ describe('writeIntegrationConfig', () => {
   // likely during exactly the task this screen is for.
   test('refuses to overwrite a file that changed after it was read', () => {
     writeFileSync(configPath(), 'first one\n');
+    backdate(configPath());
     const read = readIntegrationConfig({ path: configPath() });
     writeFileSync(configPath(), 'somebody else\n');
 
@@ -230,6 +244,7 @@ describe('patchIntegrationConfig', () => {
 
   test('checks the mtime the same way a full write does', () => {
     writeFileSync(configPath(), '{}\n');
+    backdate(configPath());
     const read = readIntegrationConfig({ path: configPath() });
     writeFileSync(configPath(), '{ "mcp": {} }\n');
 

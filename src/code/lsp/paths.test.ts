@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { describe, test } from 'node:test';
 
 import { describeUri, fromContainerUri, toContainerUri, toHostPath, toRelativePath } from './paths';
@@ -82,7 +83,13 @@ describe('describeUri', () => {
 });
 
 describe('toHostPath', () => {
+  /**
+   * The result is a **host** path — it is handed to `fs`, not to the container —
+   * so its separator is the host's. Spelling the expectation out as POSIX would
+   * assert that this never runs on Windows; composing it from segments says what
+   * the function is for on either platform.
+   */
   test('joins onto the checkout root', () => {
-    assert.equal(toHostPath('/home/u/repo', 'src/a.ts'), '/home/u/repo/src/a.ts');
+    assert.equal(toHostPath('/home/u/repo', 'src/a.ts'), join('/home/u/repo', 'src', 'a.ts'));
   });
 });

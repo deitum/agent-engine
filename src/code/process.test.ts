@@ -71,16 +71,28 @@ describe('defaultRunner', () => {
     assert.ok(Date.now() - started < 10_000, 'the call returned as soon as the child was killed');
   });
 
+  /**
+   * The probe is a variable of our own rather than `PATH`. Windows hands a child
+   * a handful of variables whatever the parent passes — `PATH` among them — so
+   * its absence would state the intent only on POSIX. A name nothing else could
+   * have set says the same thing on both.
+   */
   test('an explicit env replaces the daemon environment rather than extending it', async () => {
-    const { command, args } = node('process.stdout.write(Object.keys(process.env).join(","))');
-    const result = await defaultRunner.run(command, args, {
-      timeoutMs: 10_000,
-      env: { ENGINE_MARKER: 'set' },
-    });
+    const probe = 'ENGINE_LEAK_PROBE';
+    process.env[probe] = 'from the daemon';
+    try {
+      const { command, args } = node('process.stdout.write(Object.keys(process.env).join(","))');
+      const result = await defaultRunner.run(command, args, {
+        timeoutMs: 10_000,
+        env: { ENGINE_MARKER: 'set' },
+      });
 
-    const keys = result.stdout.split(',');
-    assert.ok(keys.includes('ENGINE_MARKER'), 'the caller-supplied variable reaches the child');
-    assert.ok(!keys.includes('PATH'), "the daemon's own environment does not leak into it");
+      const keys = result.stdout.split(',');
+      assert.ok(keys.includes('ENGINE_MARKER'), 'the caller-supplied variable reaches the child');
+      assert.ok(!keys.includes(probe), "the daemon's own environment does not leak into it");
+    } finally {
+      delete process.env[probe];
+    }
   });
 
   /** A flood of stdout must fail the one command, not take the daemon's memory with it. */

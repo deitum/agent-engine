@@ -256,6 +256,8 @@ export function dockerExec(
     let truncated = false;
     let settled = false;
     let aborted = false;
+    /** Set by {@link kill}, so an exit after it need not wait for the pipes. */
+    let killed = false;
 
     const collect = (buffer: Buffer): void => {
       options.onOutput?.(buffer.toString('utf8'));
@@ -276,6 +278,7 @@ export function dockerExec(
 
     /** Kills the client and, on the other side of the socket, the command itself. */
     const kill = (reason: string): void => {
+      killed = true;
       chunks.push(Buffer.from(`\n[${reason}]`));
       child.kill('SIGKILL');
       killMarkedProcesses(containerName, marker);
@@ -312,6 +315,24 @@ export function dockerExec(
       finish(null);
     });
     child.on('close', (code) => finish(code));
+
+    /**
+     * After a kill, the process having exited is enough — we do not wait for
+     * `close`.
+     *
+     * `close` fires only once every stdio pipe is closed as well, and a pipe
+     * outlives the process we killed if that process left a child of its own
+     * holding it. `sh -c "<command>"` does exactly that whenever the shell
+     * forks rather than `exec`s, which varies by shell and therefore by
+     * platform. The outcome is already decided by the time `kill` runs, so
+     * waiting for the straggler only delays the answer by however long it
+     * happens to run — a timeout of one second used to return after thirty.
+     */
+    child.on('exit', (code) => {
+      if (killed) {
+        finish(code);
+      }
+    });
 
     if (options.signal?.aborted) {
       onAbort();

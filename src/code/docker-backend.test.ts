@@ -20,6 +20,27 @@ for last do :; done
 exec sh -c "$last"
 `;
 
+/**
+ * The stand-in cannot exist on Windows, so everything that needs it is skipped
+ * there.
+ *
+ * A shebang script is not executable, and the two spellings that would be —
+ * `.cmd` and `.bat` — are refused by `child_process.spawn` unless it is given a
+ * shell, which `dockerExec` deliberately does not do (CVE-2024-27980). Without a
+ * fake on `PATH` a runner that has Docker installed answers with its *real*
+ * daemon, which is worse than not running at all.
+ *
+ * No coverage of platform-independent behaviour is lost: the timeout, the output
+ * ceiling and the environment handling all live in the parent process and are
+ * exercised against a real binary, on every platform, in `process.test.ts`.
+ */
+const needsPosixShell = {
+  skip:
+    process.platform === 'win32'
+      ? 'the Docker CLI cannot be faked on PATH on Windows — see process.test.ts'
+      : false,
+};
+
 let binDir: string;
 let originalPath: string | undefined;
 
@@ -55,27 +76,27 @@ describe('envArgs', () => {
 });
 
 describe('dockerExec', () => {
-  test('returns the command output and its exit code', async () => {
+  test('returns the command output and its exit code', needsPosixShell, async () => {
     const result = await dockerExec('container', 'echo hello');
     assert.equal(result.output.trim(), 'hello');
     assert.equal(result.exitCode, 0);
     assert.equal(result.truncated, false);
   });
 
-  test('reports a non-zero exit instead of throwing', async () => {
+  test('reports a non-zero exit instead of throwing', needsPosixShell, async () => {
     const result = await dockerExec('container', 'echo boom >&2; exit 3');
     assert.equal(result.exitCode, 3);
     assert.match(result.output, /boom/, 'stderr is merged into the output');
   });
 
   /** A build that floods stdout must not be able to exhaust the daemon's memory. */
-  test('caps the output and flags it as truncated', async () => {
+  test('caps the output and flags it as truncated', needsPosixShell, async () => {
     const result = await dockerExec('container', 'head -c 400000 /dev/zero | tr "\\0" "x"');
     assert.equal(result.truncated, true);
     assert.ok(result.output.length <= 250_000, `output was ${result.output.length} bytes`);
   });
 
-  test('a timeout kills the command and says so', async () => {
+  test('a timeout kills the command and says so', needsPosixShell, async () => {
     const started = Date.now();
     const result = await dockerExec('container', 'sleep 30', { timeoutSec: 1 });
     assert.ok(Date.now() - started < 10_000, 'the call returned promptly');
@@ -87,7 +108,7 @@ describe('dockerExec', () => {
    * Stop has to reach the process, and an aborted run reports `null` rather
    * than a real exit code — the caller renders that as «interrupted», not a failure.
    */
-  test('an abort stops the command and yields a null exit code', async () => {
+  test('an abort stops the command and yields a null exit code', needsPosixShell, async () => {
     const controller = new AbortController();
     const pending = dockerExec('container', 'sleep 30', { signal: controller.signal });
     setTimeout(() => controller.abort(), 100);
@@ -173,7 +194,7 @@ describe('makeDockerBackend under a plan-mode guard', () => {
     assert.ok(!result.output.includes('added'), 'the command must not have run');
   });
 
-  test('lets a read-only command through to the container', async () => {
+  test('lets a read-only command through to the container', needsPosixShell, async () => {
     const { backend } = build(createPlanGuard(true));
 
     const result = await backend.execute('echo hello');
@@ -182,7 +203,7 @@ describe('makeDockerBackend under a plan-mode guard', () => {
     assert.equal(result.output.trim(), 'hello');
   });
 
-  test('approving the plan unlocks the same backend, mid-turn', async () => {
+  test('approving the plan unlocks the same backend, mid-turn', needsPosixShell, async () => {
     const guard = createPlanGuard(true);
     const { backend, reached } = build(guard);
 
@@ -196,7 +217,7 @@ describe('makeDockerBackend under a plan-mode guard', () => {
     assert.deepEqual(reached, ['write /workspace/a.ts']);
   });
 
-  test('without a guard nothing is blocked at all', async () => {
+  test('without a guard nothing is blocked at all', needsPosixShell, async () => {
     const { backend, reached } = build();
 
     assert.equal((await backend.write('/workspace/a.ts', 'x')).error, undefined);

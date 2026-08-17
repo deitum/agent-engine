@@ -160,8 +160,19 @@ describe('PORT validation', () => {
  * MCP subprocesses running with no way out but `kill -9`.
  */
 describe('shutdown', () => {
+  /**
+   * Windows has no signals. `child.kill()` there is `TerminateProcess`, which
+   * ends the daemon without running a handler at all — so there is no cleanup to
+   * assert, which is precisely why the daemon offers `POST /shutdown` as well.
+   * `server.test.ts` covers that route, and therefore the same intent, on every
+   * platform.
+   */
+  const posixOnly = {
+    skip: process.platform === 'win32' ? 'signals do not reach a process on Windows' : false,
+  };
+
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-    test(`${signal} stops the daemon instead of hanging it`, async () => {
+    test(`${signal} stops the daemon instead of hanging it`, posixOnly, async () => {
       const { daemon } = await startDaemon(['token']);
 
       daemon.child.kill(signal);
