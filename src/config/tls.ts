@@ -74,6 +74,11 @@ export function sslVerifyFromEnv(env: NodeJS.ProcessEnv = process.env): boolean 
  * what this module set is ever undone: a daemon started with
  * `NODE_TLS_REJECT_UNAUTHORIZED=0` by hand keeps it, because that variable is
  * the user's and not ours to clear.
+ *
+ * What coming back on cannot do is re-check a connection that is already open:
+ * the variable is read per handshake, and a pooled keep-alive socket to a host
+ * this process already accepted stays usable until it goes idle. New
+ * connections — and every other host — verify again immediately.
  */
 export function applyTlsPolicy(
   sslVerify: boolean | undefined,

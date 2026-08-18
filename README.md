@@ -137,6 +137,10 @@ path. Either side may turn verification off and neither can turn it back on for 
 user who started the daemon insecurely stays that way whatever the deployment says. `POST /config`
 answers with the `sslVerify` actually in force, and the daemon warns once on the console.
 
+Withdrawing the flag restores verification at the next handshake, for every host and every new
+connection — but a keep-alive socket already open to a host this process accepted stays usable
+until it goes idle. Restart the daemon if that matters.
+
 ## HTTP API
 
 Everything but `GET /ping` takes `Authorization: Bearer <token>`. Streaming routes answer
