@@ -14,6 +14,7 @@ import { platform, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { resolveRepoCredentials } from '../config/engine-config';
+import { insecureChildEnv } from '../config/tls';
 import { ConnectorError } from '../connector';
 import {
   type CodeCloneRequest,
@@ -1247,7 +1248,10 @@ export class CodeWorkspaces {
     try {
       const { stdout } = await this.runner.run('git', ['-C', cwd, ...args], {
         timeoutMs: options.timeoutMs ?? PROCESS_TIMEOUTS.git,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...extraEnv },
+        // `insecureChildEnv` covers clone, fetch, push and `ls-remote` in one
+        // place — git is the one network client here that reads neither Node's
+        // trust store nor its variables.
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', ...insecureChildEnv(), ...extraEnv },
       });
       return stdout;
     } catch (error) {
@@ -1329,6 +1333,13 @@ export class CodeWorkspaces {
     await mkdir(this.cacheRoot, { recursive: true }).catch(() => undefined);
     args.push('-v', `${toDockerMountPath(this.cacheRoot)}:/cache`);
     for (const [key, value] of Object.entries(CACHE_ENV)) {
+      args.push('-e', `${key}=${value}`);
+    }
+    // A container reaches the network on its own — `npm install`, a toolchain
+    // download — through the same intercepting gateway as its host, so it needs
+    // the same answer. Given here as well as on every `docker exec` because a
+    // container outlives the setting that created it.
+    for (const [key, value] of Object.entries(insecureChildEnv())) {
       args.push('-e', `${key}=${value}`);
     }
     if (limits.memory) {

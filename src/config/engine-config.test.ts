@@ -14,6 +14,7 @@ import {
   resolveRepoCredentials,
   resolveSearchConfig,
 } from './engine-config';
+import { resetTlsPolicyForTests } from './tls';
 
 const realFetch = globalThis.fetch;
 
@@ -193,6 +194,63 @@ describe('adoptEngineConfig — a gateway read from the host', () => {
     // Dropped, not merged: the bundle is the whole configuration, so a setting
     // the user turned off has to leave with it.
     assert.equal(resolveSearchConfig(), undefined);
+  });
+});
+
+describe('adoptEngineConfig — certificate verification', () => {
+  const NODE_VAR = 'NODE_TLS_REJECT_UNAUTHORIZED';
+
+  afterEach(() => {
+    delete process.env[NODE_VAR];
+    resetTlsPolicyForTests();
+  });
+
+  test('is on unless someone says otherwise, and says so', async () => {
+    noNetwork();
+
+    const result = await adoptEngineConfig({
+      version: 'v1',
+      llm: { baseUrl: 'https://gateway.corp/v1', apiKey: 'sk' },
+    });
+
+    assert.equal(result.sslVerify, true);
+    assert.equal(process.env[NODE_VAR], undefined);
+  });
+
+  test('a bundle that turns it off is applied before the host is fetched', async () => {
+    // The whole point of the ordering: a deployment sitting behind the very
+    // certificate nobody can verify would otherwise never get to deliver the
+    // flag that makes its own address readable.
+    const seen: (string | undefined)[] = [];
+    globalThis.fetch = (() => {
+      seen.push(process.env[NODE_VAR]);
+      return Promise.resolve(
+        new Response(JSON.stringify({ baseUrl: 'https://gateway.corp/v1' }), { status: 200 }),
+      );
+    }) as typeof fetch;
+
+    const result = await adoptEngineConfig(bundle({ llm: { apiKey: 'sk', sslVerify: false } }));
+
+    assert.deepEqual(seen, ['0']);
+    assert.equal(result.sslVerify, false);
+  });
+
+  test('a host may decide it instead of the client', async () => {
+    hostServing({ baseUrl: 'https://gateway.corp/v1', sslVerify: false });
+
+    const result = await adoptEngineConfig(bundle());
+
+    assert.equal(result.sslVerify, false);
+    assert.equal(process.env[NODE_VAR], '0');
+  });
+
+  test('a client that turned it off is not overruled by a host that did not', async () => {
+    hostServing({ baseUrl: 'https://gateway.corp/v1', sslVerify: true });
+
+    const result = await adoptEngineConfig(bundle({ llm: { apiKey: 'sk', sslVerify: false } }));
+
+    assert.equal(result.sslVerify, false);
+    assert.equal(process.env[NODE_VAR], '0');
   });
 });
 

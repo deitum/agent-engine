@@ -11,6 +11,7 @@ import {
 
 import { trustDeploymentCerts } from './ca-certs';
 import { CONFIG_MISSING_STATUS } from './config.constants';
+import { applyTlsPolicy } from './tls';
 
 /**
  * The configuration this daemon runs on, as handed over by the client when it
@@ -50,9 +51,19 @@ let current: AdoptedConfig | null = null;
 export async function adoptEngineConfig(
   request: EngineConfigRequest,
 ): Promise<EngineConfigResponse> {
-  const { baseUrl, caCerts } = await resolveGateway(request);
+  // Before anything is fetched, because `resolveGateway` may itself have to
+  // reach the host over the very TLS this decides about: a deployment behind an
+  // interception certificate would otherwise never get to deliver the flag that
+  // makes its own address readable.
+  let sslVerify = applyTlsPolicy(request.llm?.sslVerify);
+  const { baseUrl, caCerts, hostSslVerify } = await resolveGateway(request);
+  // The host's answer, for a deployment that decides this centrally. Only when
+  // the bundle said nothing — a client that carries the flag has already spoken.
+  if (request.llm?.sslVerify === undefined && hostSslVerify !== undefined) {
+    sslVerify = applyTlsPolicy(hostSslVerify);
+  }
   useEngineConfig(request, baseUrl);
-  return { version: configVersion(), baseUrl, caCerts };
+  return { version: configVersion(), baseUrl, caCerts, sslVerify };
 }
 
 /**
@@ -83,7 +94,7 @@ export function useEngineConfig(request: EngineConfigRequest, gatewayUrl: string
  */
 async function resolveGateway(
   request: EngineConfigRequest,
-): Promise<{ baseUrl: string; caCerts: number }> {
+): Promise<{ baseUrl: string; caCerts: number; hostSslVerify?: boolean }> {
   const named = (request.llm?.baseUrl ?? '').trim().replace(/\/+$/, '');
   if (named) {
     return { baseUrl: named, caCerts: trustDeploymentCerts(request.llm.caCerts ?? []) };
@@ -112,7 +123,11 @@ async function resolveGateway(
     throw new ConnectorError(502, `The host config at ${url} declares no baseUrl`);
   }
 
-  return { baseUrl, caCerts: trustDeploymentCerts(config.caCerts ?? []) };
+  return {
+    baseUrl,
+    caCerts: trustDeploymentCerts(config.caCerts ?? []),
+    ...(config.sslVerify === undefined ? {} : { hostSslVerify: config.sslVerify }),
+  };
 }
 
 /**

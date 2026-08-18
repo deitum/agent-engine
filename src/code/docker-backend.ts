@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
+import { insecureChildEnv } from '../config/tls';
 import { type CodeEnvVar } from '../contracts';
 
 import { networkGitRefusal } from './code-git';
@@ -210,6 +211,15 @@ export function envArgs(env: CodeEnvVar[] | undefined): string[] {
 }
 
 /**
+ * The daemon's TLS decision as env pairs, so it can be handed to a container
+ * the same way a session's own variables are. Empty while certificates are
+ * verified, which is every normal installation.
+ */
+function insecureEnvVars(): CodeEnvVar[] {
+  return Object.entries(insecureChildEnv()).map(([key, value]) => ({ key, value }));
+}
+
+/**
  * Runs `command` inside the session's container via `docker exec` from
  * `/workspace`, combining stdout+stderr and enforcing a timeout + output cap.
  * Returns the same {@link ExecuteResponse} shape as deepagents' local sandbox.
@@ -242,6 +252,9 @@ export function dockerExec(
         // into the repository).
         '-e',
         'GIT_TERMINAL_PROMPT=0',
+        // Whatever the daemon decided about certificates, applied per exec so a
+        // container created before the decision still obeys it.
+        ...envArgs(insecureEnvVars()),
         ...envArgs(options.env),
         containerName,
         'sh',

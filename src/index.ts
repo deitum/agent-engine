@@ -31,6 +31,7 @@ export { StateDb } from './storage/state-db';
 export { BackgroundTasks } from './tasks/background-tasks';
 export { engineHome } from './platform';
 export { trustSystemCerts } from './config/ca-certs';
+export { applyTlsPolicy, tlsVerificationDisabled, SSL_VERIFY_VAR } from './config/tls';
 export { useEngineConfig, resetEngineConfig } from './config/engine-config';
 
 export * from './contracts';

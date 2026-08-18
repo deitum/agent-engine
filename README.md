@@ -114,11 +114,32 @@ one JSON object:
   // Optional: PEM blocks added to this process's trust store, so a corporate TLS
   // gateway works without the user setting NODE_EXTRA_CA_CERTS.
   "caCerts": ["-----BEGIN CERTIFICATE-----\n…"],
+  // Optional, and a last resort: `false` stops this daemon verifying certificates
+  // at all. See «Turning certificate verification off» below.
+  "sslVerify": true,
 }
 ```
 
 No route naming, no authentication assumed: the client passes a complete URL, so the engine never
 has to know how your host spells its own paths. `llm.baseUrl` wins when both are given.
+
+### Turning certificate verification off
+
+On a network that intercepts TLS with a certificate you cannot obtain, publishing `caCerts` is not
+an option and every outbound call fails. `sslVerify: false` — in the handshake bundle
+(`llm.sslVerify`), in the host config above, or as `AGENT_ENGINE_SSL_VERIFY=false` on the daemon's
+own environment — stops this process verifying certificates **anywhere**: the gateway, repository
+hosts, the catalogue, web search, remote MCP servers, and the `git`, stdio servers and containers
+it spawns.
+
+It is the last resort, not a setting: traffic can then be read and altered by anything on the
+path. Either side may turn verification off and neither can turn it back on for the other, so a
+user who started the daemon insecurely stays that way whatever the deployment says. `POST /config`
+answers with the `sslVerify` actually in force, and the daemon warns once on the console.
+
+Withdrawing the flag restores verification at the next handshake, for every host and every new
+connection — but a keep-alive socket already open to a host this process accepted stays usable
+until it goes idle. Restart the daemon if that matters.
 
 ## HTTP API
 
@@ -206,6 +227,7 @@ data here rather than stranding it.
 | `AGENT_ENGINE_LLM_MAX_RETRIES` | `3`                  | Retries per model call; `0` disables them                   |
 | `AGENT_ENGINE_USER_AGENT`      | package name/version | `User-Agent` for gateway calls                              |
 | `AGENT_ENGINE_DNS_SEARCH`      | detected             | DNS search domains for sandbox containers                   |
+| `AGENT_ENGINE_SSL_VERIFY`      | `true`               | `false` stops verifying TLS certificates anywhere (above)   |
 | `NODE_EXTRA_CA_CERTS`          | —                    | Extra CA, when neither the OS store nor `caCerts` covers it |
 
 **User-Agent.** The daemon calls the gateway under its own name, replacing the `langchainjs-openai/…`
