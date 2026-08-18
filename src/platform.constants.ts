@@ -13,7 +13,9 @@ export const ENGINE_HOME_DIR = '.agent-engine';
 
 /**
  * Environment variables a locally-spawned shell inherits regardless of OS:
- * where to find programs, how to reach the network, and which CA to trust.
+ * where to find programs, how to reach the network, and which CA to trust —
+ * including the two that say «trust anything», which a shell whose daemon has
+ * stopped verifying certificates would otherwise fail without (see `config/tls.ts`).
  */
 const SHARED_ENV_KEYS = [
   'PATH',
@@ -24,6 +26,8 @@ const SHARED_ENV_KEYS = [
   'https_proxy',
   'no_proxy',
   'NODE_EXTRA_CA_CERTS',
+  'NODE_TLS_REJECT_UNAUTHORIZED',
+  'GIT_SSL_NO_VERIFY',
 ];
 
 /**

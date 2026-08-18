@@ -172,6 +172,12 @@ export interface LlmConfig {
    * `NODE_EXTRA_CA_CERTS`. Empty when the deployment declares no `CA_CERT_DIR`.
    */
   caCerts?: string[];
+  /**
+   * Whether the connector verifies TLS certificates at all — see
+   * {@link EngineLlmConfig.sslVerify}, which this is the deployment's half of.
+   * Absent means «verify»; only an explicit `false` turns verification off.
+   */
+  sslVerify?: boolean;
 }
 
 /**

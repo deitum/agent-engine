@@ -8,6 +8,7 @@ import {
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { type Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
+import { insecureChildEnv } from './config/tls';
 import {
   type McpServerConfig,
   type McpTool,
@@ -182,7 +183,12 @@ export class Connector {
       return new StdioClientTransport({
         command: config.command,
         args: config.args ?? [],
-        env: { ...getDefaultEnvironment(), ...config.env },
+        // A server started by this daemon reaches its own API over the same
+        // network the daemon does, and the SDK's default environment is an
+        // allow-list carrying neither TLS variable — so an insecure daemon would
+        // otherwise spawn a server that still verifies, and still fails. The
+        // user's own `env` stays last: theirs is the final word on their server.
+        env: { ...getDefaultEnvironment(), ...insecureChildEnv(), ...config.env },
       });
     }
 

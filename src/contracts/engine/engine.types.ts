@@ -65,6 +65,19 @@ export interface EngineLlmConfig {
    * `NODE_EXTRA_CA_CERTS`.
    */
   caCerts?: string[];
+  /**
+   * Whether TLS certificates are verified at all. `false` turns verification off
+   * for **every** outbound call this daemon makes — the gateway, the repository
+   * hosts, the catalogue, web search, remote MCP servers, and the `git` and
+   * containers it spawns. It is the last resort for a network whose interception
+   * certificate cannot be obtained; {@link caCerts} is the answer that keeps the
+   * connection authenticated.
+   *
+   * Absent or `true` means «verify», so a client that has never heard of this
+   * field gets the safe behaviour. Independent of {@link caCerts}: both can be in
+   * force at once, and neither withdraws the other.
+   */
+  sslVerify?: boolean;
 }
 
 /**
@@ -77,6 +90,13 @@ export interface EngineLlmConfig {
 export interface HostLlmConfig {
   baseUrl: string;
   caCerts?: string[];
+  /**
+   * The deployment's own answer to {@link EngineLlmConfig.sslVerify}, for a host
+   * that decides this centrally rather than leaving it to each client. Read only
+   * when the bundle said nothing: a client that carries the flag has already
+   * applied it by the time this URL is fetched.
+   */
+  sslVerify?: boolean;
 }
 
 /** What the daemon resolved — echoed back for diagnostics. */
@@ -87,4 +107,11 @@ export interface EngineConfigResponse {
   baseUrl: string;
   /** How many certificates were applied to the trust store. */
   caCerts: number;
+  /**
+   * Whether this daemon is verifying TLS certificates. `false` is the insecure
+   * mode being in force — echoed back because it can be switched on by the
+   * daemon's own environment as well as by the bundle, so the client cannot work
+   * it out from what it sent.
+   */
+  sslVerify: boolean;
 }

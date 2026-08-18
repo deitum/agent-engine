@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { trustSystemCerts } from './config/ca-certs';
+import { applyTlsPolicy } from './config/tls';
 import { PACKAGE_NAME } from './package.constants';
 import { createEngineServer } from './server';
 import { stateDbPath } from './storage/storage.constants';
@@ -27,6 +28,12 @@ function main(): void {
   // told. Done here rather than in `createEngineServer` because it changes
   // the whole process's trust, and a test that spins up a server should not.
   trustSystemCerts();
+
+  // The escape hatch for a machine where trusting more is not enough: started
+  // with `AGENT_ENGINE_SSL_VERIFY=false`, this process stops verifying
+  // certificates from boot rather than from the first handshake. Every handshake
+  // re-applies the decision together with what the deployment says.
+  applyTlsPolicy(undefined);
 
   // `stop` is defined below and only ever reached from a request handler, i.e.
   // long after `main` has returned.
