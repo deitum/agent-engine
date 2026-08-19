@@ -242,7 +242,7 @@ async function withDocument(
   if (!path) {
     return 'Pass path — the file path from the repository root.';
   }
-  let prepared: PreparedDocument | null = null;
+  let prepared: PreparedDocument | null;
   try {
     prepared = await context.session.syncDocument(path);
   } catch {

@@ -135,7 +135,7 @@ export async function fetchPage(
     if (signal?.aborted) {
       throw error;
     }
-    throw new Error(`Could not open ${raw}: ${asMessage(error)}`);
+    throw new Error(`Could not open ${raw}: ${asMessage(error)}`, { cause: error });
   }
 
   // `fetch` follows redirects itself, so the guard is applied again to where we

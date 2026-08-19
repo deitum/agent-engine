@@ -405,7 +405,7 @@ function describeRequest(request: ChatCompletionRequest, serialized?: string): s
  * raw text, and finally a generic status line.
  */
 async function safeErrorBody(response: Response): Promise<string> {
-  let text = '';
+  let text: string;
   try {
     text = await response.text();
   } catch {

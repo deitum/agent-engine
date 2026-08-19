@@ -1785,7 +1785,7 @@ export async function streamAgentUpdates(
     if (!isRecursionLimit(error)) {
       ending = 'failed';
       settleInFlight();
-      throw new Error(describeError(error));
+      throw new Error(describeError(error), { cause: error });
     }
     // Out of steps, not broken: report the cap and let the caller finish the
     // turn normally, keeping the text, plan and tool results already streamed.

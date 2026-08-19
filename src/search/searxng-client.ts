@@ -148,7 +148,7 @@ export async function searchSearxng(
     if (signal?.aborted) {
       throw error;
     }
-    throw new Error(`SearXNG is unreachable at ${baseUrl}: ${asMessage(error)}`);
+    throw new Error(`SearXNG is unreachable at ${baseUrl}: ${asMessage(error)}`, { cause: error });
   }
 
   if (!response.ok) {
