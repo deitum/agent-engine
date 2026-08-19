@@ -88,6 +88,19 @@ describe('chatCompletion', () => {
     assert.equal(await response.text(), streamed('Hello'));
   });
 
+  test('carries the reasoning effort a host asked for, and nothing when it did not', async () => {
+    const api = gateway(() => sse(streamed('Hello')));
+
+    await chatCompletion({ model: 'gpt', messages: [], reasoning_effort: 'high' });
+    await chatCompletion({ model: 'gpt', messages: [] });
+
+    // Verbatim and under the gateway's own name: this route is a host's only
+    // way to set the level when it drives the turn itself, with no agent run to
+    // put it on the model instead.
+    assert.equal(api.calls[0]?.body.reasoning_effort, 'high');
+    assert.ok(!('reasoning_effort' in (api.calls[1]?.body ?? {})));
+  });
+
   test('a rejection keeps the gateway status and its message', async () => {
     gateway(
       () => new Response(JSON.stringify({ error: { message: 'bad token' } }), { status: 401 }),
@@ -192,6 +205,27 @@ describe('createLlmFetch', () => {
     // it. Logging must not have consumed the body on the way past.
     assert.equal(response.status, 422);
     assert.match(await response.text(), /nope/);
+  });
+
+  test('the stream upgrade keeps the fields it did not come to change', async () => {
+    const api = gateway(() => sse(streamed('Done')));
+
+    // The body an agent's `ChatOpenAI` writes, rebuilt here to add `stream`.
+    // Whatever else it carried — the reasoning effort among it — has to survive
+    // that rebuild, or a setting reaches the daemon and stops there.
+    await llmFetch(`${GATEWAY}/chat/completions`, {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'gpt',
+        messages: [],
+        stream: false,
+        reasoning_effort: 'low',
+        tool_choice: 'auto',
+      }),
+    });
+
+    assert.equal(api.calls[0]?.body.reasoning_effort, 'low');
+    assert.equal(api.calls[0]?.body.tool_choice, 'auto');
   });
 
   test('anything that is not a chat completion goes out untouched', async () => {

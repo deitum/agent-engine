@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { adoptEngineConfig, resetEngineConfig } from '../config/engine-config';
+import { type DeepAgentLlmParams } from '../contracts';
 
 import { buildChatModel } from './chat-model';
 import { DEFAULT_LLM_MAX_RETRIES, LLM_MAX_RETRIES_VAR } from './llm.constants';
@@ -13,8 +14,8 @@ class FakeChatOpenAI {
   constructor(readonly params: Record<string, unknown>) {}
 }
 
-const build = (): FakeChatOpenAI =>
-  buildChatModel(FakeChatOpenAI as never, { model: 'gpt' }) as unknown as FakeChatOpenAI;
+const build = (llm: DeepAgentLlmParams = { model: 'gpt' }): FakeChatOpenAI =>
+  buildChatModel(FakeChatOpenAI as never, llm) as unknown as FakeChatOpenAI;
 
 beforeEach(async () => {
   globalThis.fetch = (() =>
@@ -59,6 +60,13 @@ describe('buildChatModel', () => {
       process.env[LLM_MAX_RETRIES_VAR] = value;
       assert.equal(build().params.maxRetries, DEFAULT_LLM_MAX_RETRIES, `for "${value}"`);
     }
+  });
+
+  test('passes the reasoning effort a run named, and omits the key when it did not', () => {
+    assert.equal(build({ model: 'gpt', reasoningEffort: 'high' }).params.reasoningEffort, 'high');
+    // Absent, not `undefined`: an unset sampling field means «the provider's own
+    // default», which is not the same as naming one.
+    assert.ok(!('reasoningEffort' in build().params));
   });
 
   test('each model gets its own fetch, so attempts are counted per turn', () => {

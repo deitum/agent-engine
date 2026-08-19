@@ -48,10 +48,24 @@ export interface ChatCompletionTool {
 }
 
 /**
+ * How hard a reasoning model thinks before it answers (OpenAI's
+ * `reasoning_effort`). Only reasoning-capable models act on it; the rest ignore
+ * it, so it is always the caller's to send and never this daemon's to withhold.
+ *
+ * One vocabulary for both wires — an agent's {@link DeepAgentModelParams} and a
+ * plain {@link ChatCompletionRequest} — because it describes the model rather
+ * than the route that reached it.
+ */
+export type ReasoningEffort = 'low' | 'medium' | 'high';
+
+/**
  * An OpenAI-compatible chat-completion request, as the connector sends it to the
  * gateway. The connector always asks the gateway to stream (it is streaming-only
  * upstream) and decides per caller what to do with the reply: relay the SSE to
  * the browser, or fold it into one {@link ChatCompletion} for its own agents.
+ *
+ * Fields are named as the gateway reads them, because the body goes out as this
+ * object plus `stream` — a camelCase key here would travel unrecognised.
  */
 export interface ChatCompletionRequest {
   model: string;
@@ -60,6 +74,19 @@ export interface ChatCompletionRequest {
   tools?: ChatCompletionTool[];
   /** Tool-selection strategy forwarded verbatim to the upstream LLM. */
   tool_choice?: 'auto' | 'none' | 'required';
+  /**
+   * Reasoning effort for this call, forwarded verbatim (see
+   * {@link ReasoningEffort}). Omitted = the provider's own default.
+   *
+   * It is here so that a host whose turn is driven by its **own** tool loop —
+   * the browser talking to this route directly, with no deep agent in the way —
+   * can offer the setting at all. An agent run reaches the same knob through
+   * {@link DeepAgentModelParams.reasoningEffort}, which this daemon puts on the
+   * model it builds; a run that never gets that far had nowhere to put it, so
+   * the level a user picked was silently dropped on exactly the path where the
+   * daemon does the least.
+   */
+  reasoning_effort?: ReasoningEffort;
 }
 
 /** A fragment of a streamed tool call (arguments arrive incrementally). */

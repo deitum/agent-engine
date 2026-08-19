@@ -392,6 +392,14 @@ function describeRequest(request: ChatCompletionRequest, serialized?: string): s
     `tools=${request.tools?.length ?? 0}`,
   ];
 
+  // Named only when it was asked for: a gateway that refuses `reasoning_effort`
+  // on a model that does not reason answers as opaquely as it does for anything
+  // else, and this is the one field the *user* chose, so it is worth ruling in
+  // or out before the tool list is.
+  if (request.reasoning_effort) {
+    parts.push(`reasoningEffort=${request.reasoning_effort}`);
+  }
+
   const names = (request.tools ?? []).map((tool) => tool.function.name).join(',');
   if (names) {
     parts.push(`toolNames=${names}`);

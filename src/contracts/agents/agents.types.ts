@@ -1,5 +1,10 @@
 import { type ArtifactPayload } from '../artifacts/artifacts.types';
-import { type ChatCompletionTool, type ChatMessage, type CompletionUsage } from '../llm/llm.types';
+import {
+  type ChatCompletionTool,
+  type ChatMessage,
+  type CompletionUsage,
+  type ReasoningEffort,
+} from '../llm/llm.types';
 import { type Manifest } from '../manifest/manifest.types';
 import { type McpToolSource } from '../mcp/mcp.types';
 import { type Skill } from '../skills/skills.types';
@@ -42,8 +47,13 @@ export interface DeepAgentModelParams {
   frequencyPenalty?: number;
   /** Penalty for token presence (OpenAI `presence_penalty`). */
   presencePenalty?: number;
-  /** Reasoning effort for reasoning models (`reasoning_effort`). */
-  reasoningEffort?: 'low' | 'medium' | 'high';
+  /**
+   * Reasoning effort for reasoning models (`reasoning_effort`) — the same
+   * vocabulary a plain completion sends as
+   * {@link ChatCompletionRequest.reasoning_effort}, so a host offering the
+   * setting once can hand it to either wire.
+   */
+  reasoningEffort?: ReasoningEffort;
 }
 
 /**
