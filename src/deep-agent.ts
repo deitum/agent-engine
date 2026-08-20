@@ -49,6 +49,7 @@ import { RM_RETRY } from './platform.constants';
 import { buildToolCallRepairMiddleware } from './repair-tool-calls';
 import { buildSearchTools } from './search/search-tools';
 import { type SearxngContainer } from './search/searxng-container';
+import { packageName, safeSegment } from './skill-package';
 import { type BackgroundTasks, TaskError } from './tasks/background-tasks';
 import { taskPromptSection } from './tasks/task-prompt';
 import {
@@ -303,12 +304,19 @@ function sessionDirName(sessionId: string): string {
  * letters and leading separators, then drops every `.`/`..` segment. Paths in a
  * run request come from the browser, so without this a crafted `../../` path
  * would let a request write anywhere on the user's disk.
+ *
+ * Each surviving segment then goes through {@link safeSegment}, because staying
+ * inside the subtree is not the same as being creatable: a name carrying `:` or
+ * a reserved device name fails `mkdir` on Windows with `ENOENT`, whatever the
+ * subtree.
  */
 export function safeRelPath(path: string): string {
   const segments = path
     .replace(/^[a-zA-Z]:/, '')
     .split(/[\\/]+/)
-    .filter((segment) => segment !== '' && segment !== '.' && segment !== '..');
+    .filter((segment) => segment !== '' && segment !== '.' && segment !== '..')
+    .map(safeSegment)
+    .filter((segment) => segment !== '');
   return segments.join('/');
 }
 
@@ -331,6 +339,36 @@ function resetDir(dir: string, subdir: string): void {
 }
 
 /**
+ * The directory one skill is materialized into. Slugged with {@link packageName}
+ * rather than merely confined with {@link safeRelPath}: an embedder namespaces a
+ * plugin's skill as `<plugin>:<skill>`, and a colon in a path segment is what
+ * Windows reserves for alternate data streams, so `mkdir` fails with `ENOENT`.
+ * Truncating can lay a separator bare at the end, hence the second trim.
+ */
+function skillDirName(id: string): string {
+  return (
+    packageName(id)
+      .slice(0, MAX_SKILL_NAME)
+      .replace(/[-._]+$/, '') || 'skill'
+  );
+}
+
+/**
+ * Keeps two skills whose ids slug to the same name from overwriting one another
+ * — the very collision the caller's namespacing exists to prevent, which a
+ * lossy slug could otherwise reintroduce.
+ */
+function uniqueSkillDirName(name: string, taken: Set<string>): string {
+  let candidate = name;
+  for (let n = 2; taken.has(candidate); n += 1) {
+    const suffix = `-${n}`;
+    candidate = `${name.slice(0, MAX_SKILL_NAME - suffix.length)}${suffix}`;
+  }
+  taken.add(candidate);
+  return candidate;
+}
+
+/**
  * Materialises the agent's attached skills into `<dir>/skills/<id>/` as Agent
  * Skills packages (a reconstructed `SKILL.md` with `name`/`description`
  * frontmatter plus any bundled files), and returns the virtual `skills` source
@@ -347,8 +385,9 @@ export function materializeSkills(
     return undefined;
   }
   const skillsDir = join(dir, subdir);
+  const taken = new Set<string>();
   for (const skill of skills) {
-    const id = safeRelPath(skill.id).slice(0, MAX_SKILL_NAME) || 'skill';
+    const id = uniqueSkillDirName(skillDirName(skill.id), taken);
     const base = join(skillsDir, id);
     const description = (skill.description.trim() || skill.name || id).slice(
       0,

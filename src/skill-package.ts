@@ -65,6 +65,33 @@ export function packageName(id: string): string {
 }
 
 /**
+ * Characters Windows refuses in a path segment (`:` is the alternate-stream
+ * marker). The control range is the point here rather than the typo the rule
+ * below normally catches.
+ */
+// eslint-disable-next-line no-control-regex
+const WINDOWS_ILLEGAL_CHARS = /[<>:"|?*\u0000-\u001f]/g;
+
+/**
+ * Reduces one path segment to something every platform will actually create:
+ * replaces the characters Windows forbids, drops the trailing dots and spaces it
+ * silently strips, and renames a reserved device name out of the way. Returns
+ * `''` when nothing usable is left, so the caller can drop the segment.
+ *
+ * Unlike {@link packageName} case and spaces survive — this runs over names a
+ * human chose for a document (a project file, a skill's bundled reference), and
+ * the model reads those paths back. A package slug is a different question.
+ */
+export function safeSegment(segment: string): string {
+  const cleaned = segment.replace(WINDOWS_ILLEGAL_CHARS, '-').replace(/[. ]+$/, '');
+  if (!cleaned) {
+    return '';
+  }
+  // Prefixed rather than suffixed: `aux.md` has to stay a `.md` file.
+  return WINDOWS_RESERVED_NAMES.has(cleaned.split('.')[0].toLowerCase()) ? `_${cleaned}` : cleaned;
+}
+
+/**
  * Resolves the package directory a caller's `id` names inside `root`, and is the
  * single place that guarantees the result stays inside it — every write and the
  * delete go through here. {@link packageName} already strips separators, so the
