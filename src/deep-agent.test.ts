@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -736,6 +736,18 @@ test('safeRelPath confines a caller-supplied path to one subtree', () => {
   assert.equal(safeRelPath('../..'), '');
 });
 
+test('safeRelPath also makes every segment one Windows will create', () => {
+  // A colon is the alternate-stream marker there, so `mkdir` fails with ENOENT.
+  assert.equal(safeRelPath('spec:v2.md'), 'spec-v2.md');
+  assert.equal(safeRelPath('notes/q1?.md'), 'notes/q1-.md');
+  // Reserved device names are moved out of the way, extension intact.
+  assert.equal(safeRelPath('refs/aux.md'), 'refs/_aux.md');
+  // Windows silently strips a trailing dot or space, which loses the file.
+  assert.equal(safeRelPath('draft. /notes.md'), 'draft/notes.md');
+  // Case and spaces are the document's own, and survive.
+  assert.equal(safeRelPath('Design Notes.md'), 'Design Notes.md');
+});
+
 test('materializing skills replaces what a previous turn left behind', () => {
   withTempDir((dir) => {
     const skill = (id: string) => ({
@@ -756,6 +768,38 @@ test('materializing skills replaces what a previous turn left behind', () => {
 
     assert.equal(materializeSkills(dir, []), undefined);
     assert.deepEqual(readdirSync(dir), []);
+  });
+});
+
+test('a namespaced skill id becomes a directory name Windows accepts', () => {
+  withTempDir((dir) => {
+    const skill = (id: string) => ({
+      id,
+      name: id,
+      description: `description ${id}`,
+      instructions: `# ${id}`,
+      files: [],
+    });
+
+    // An embedder namespaces a plugin's skill as `<plugin>:<skill>`; used
+    // verbatim, that colon fails `mkdir` on Windows with ENOENT.
+    materializeSkills(dir, [skill('aft-sa:jira-task-onboarding')]);
+    assert.deepEqual(readdirSync(join(dir, 'skills')), ['aft-sa-jira-task-onboarding']);
+    const written = readFileSync(
+      join(dir, 'skills', 'aft-sa-jira-task-onboarding', 'SKILL.md'),
+      'utf8',
+    );
+    // The frontmatter name is the directory name, so it is colon-free too.
+    assert.match(written, /^---\nname: aft-sa-jira-task-onboarding\n/);
+
+    // Two ids that slug alike keep the separate directories the namespacing
+    // was there to guarantee.
+    materializeSkills(dir, [skill('qa:review'), skill('qa-review')]);
+    assert.deepEqual(readdirSync(join(dir, 'skills')).sort(), ['qa-review', 'qa-review-2']);
+
+    // An id that sanitises away still gets a home rather than throwing.
+    materializeSkills(dir, [skill('..')]);
+    assert.deepEqual(readdirSync(join(dir, 'skills')), ['skill']);
   });
 });
 
