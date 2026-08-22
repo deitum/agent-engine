@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 
 import { trustSystemCerts } from './config/ca-certs';
 import { applyTlsPolicy } from './config/tls';
-import { PACKAGE_NAME } from './package.constants';
+import { startFileLog } from './log-file';
+import { PACKAGE_NAME, PACKAGE_VERSION } from './package.constants';
 import { createEngineServer } from './server';
 import { stateDbPath } from './storage/storage.constants';
 
@@ -12,6 +13,10 @@ const DEFAULT_PORT = 50880;
 const SHUTDOWN_GRACE_MS = 10_000;
 
 function main(): void {
+  // First, so that everything below — a rejected port, a CA warning, the banner
+  // itself — is in the file the user is about to be told the path of.
+  const log = startFileLog();
+
   // `MCP_AUTH_TOKEN` is what this was called before the engine was a package of
   // its own; still read so an existing launcher script keeps working.
   const token =
@@ -40,12 +45,16 @@ function main(): void {
   const server = createEngineServer({ token, onShutdownRequest: () => stop() });
 
   server.listen(port, '127.0.0.1', () => {
-    console.log(`${PACKAGE_NAME} is running.`);
+    console.log(`${PACKAGE_NAME} v${PACKAGE_VERSION} is running.`);
     console.log('');
     console.log(`  URL:   http://127.0.0.1:${port}`);
     console.log(`  Token: ${token}`);
     console.log(`  Data:  ${stateDbPath()} (only if a client moves its storage here)`);
+    console.log(`  Logs:  ${log ? log.path : 'this console only — no log file could be opened'}`);
     console.log('');
+    // The person reading this ran a command their app told them to run, and the
+    // one thing they need to know is that the terminal is done with them.
+    console.log('The connector is running — go back to the app.');
     console.log('Give the URL and token to your app, which then hands this process its');
     console.log('configuration over POST /config. Keep it running while you use the app.');
   });

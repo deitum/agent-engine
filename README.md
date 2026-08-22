@@ -205,10 +205,16 @@ Everything under `~/.agent-engine` (override with `AGENT_ENGINE_HOME`):
 ```
 ~/.agent-engine/
   state.db          # the client database, when an app moves its storage here
+  logs/engine.log   # everything the daemon prints, timestamped (plus one .1 rotation)
   code/<session>/   # git checkouts for the coding sandbox
   deep-agents/      # per-chat agent workspaces, aged out at startup
   cache/            # package-manager caches shared by every session
 ```
+
+`logs/engine.log` is a mirror of the console, so a terminal that was closed — or scrolled past the
+failure — is not the only copy of the run. Runs append to it and it rotates to `engine.log.1` at
+5 MB. The daemon prints its path in the startup banner; a home it cannot write to costs the log
+file, not the daemon. It is created `0600` because the banner it mirrors carries the bearer token.
 
 `state.db` is created on first use with mode `0600` and holds whatever the app stores, tokens
 included — treat it as a password file. It needs `node:sqlite` (Node 22.5+); on an older Node the

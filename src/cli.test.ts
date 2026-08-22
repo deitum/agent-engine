@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
 import { type ChildProcess, spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, afterEach, before, describe, test } from 'node:test';
 
+import { PACKAGE_VERSION } from './package.constants';
+
 const CLI = join(__dirname, 'cli.js');
+
+/** Where a daemon started with this suite's `HOME` writes its log. */
+const logPath = (home: string): string => join(home, '.agent-engine', 'logs', 'engine.log');
+
+/** A literal string as a pattern — Windows paths are full of regex metacharacters. */
+const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * A throw-away `$HOME` for every spawned daemon.
@@ -110,6 +118,34 @@ async function ping(port: number, token?: string): Promise<{ authorized?: boolea
   return (await response.json()) as { authorized?: boolean };
 }
 
+/**
+ * The banner is the daemon's entire user interface: whoever ran the command has
+ * a terminal in front of them and needs to know which build answered, that it is
+ * up, that they are done here, and where to look when something later goes wrong.
+ */
+describe('the startup banner', () => {
+  test('names the version, says the connector is up, and points at the log file', async () => {
+    const { daemon } = await startDaemon(['token']);
+
+    assert.match(
+      daemon.output(),
+      new RegExp(`agent-engine v${literal(PACKAGE_VERSION)} is running`),
+    );
+    assert.match(daemon.output(), /The connector is running — go back to the app\./);
+    assert.match(daemon.output(), new RegExp(`Logs: \\s*${literal(logPath(home))}`));
+  });
+
+  test('the banner itself is in the log file, so a closed terminal loses nothing', async () => {
+    const { daemon, port } = await startDaemon(['logged-token']);
+
+    const logged = readFileSync(logPath(home), 'utf8');
+    assert.match(logged, /Token: logged-token/, 'the run is recorded');
+    assert.match(logged, /^\d{4}-\d{2}-\d{2}T[\d:.]+Z /m, 'each line is stamped');
+    assert.equal((await ping(port, 'logged-token')).authorized, true, 'and the daemon still runs');
+    assert.match(daemon.output(), /Token: logged-token/, 'the console still gets it too');
+  });
+});
+
 describe('the token the daemon listens with', () => {
   test('is the one passed as an argument, and it is printed for the user to copy', async () => {
     const { daemon, port } = await startDaemon(['argv-token']);
@@ -192,7 +228,7 @@ describe('shutdown', () => {
     await daemon.exited;
 
     const restarted = spawnCli(['token'], { PORT: String(port) });
-    await restarted.waitFor(/agent-engine is running/);
+    await restarted.waitFor(/agent-engine v\S+ is running/);
     assert.equal((await ping(port, 'token')).authorized, true);
   });
 });
