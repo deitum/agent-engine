@@ -18,11 +18,14 @@ const logPath = (home: string): string => join(home, '.agent-engine', 'logs', 'e
 const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * A throw-away `$HOME` for every spawned daemon.
+ * A throw-away home for every spawned daemon.
  *
  * `cli.js` is the real entry point, so it builds the real workspace roots under
- * `~/.agent-engine` and sweeps them at startup. Pointing `HOME` at a temp dir keeps
- * the suite off the machine's actual workspaces.
+ * `~/.agent-engine` and sweeps them at startup. Pointing the home at a temp dir
+ * keeps the suite off the machine's actual workspaces — and `USERPROFILE` has to
+ * be pointed at it too, because that, not `HOME`, is what `os.homedir()` reads on
+ * Windows. Without it the daemon wrote its log into the runner's real profile and
+ * the assertions below looked for it in the temp directory.
  */
 let home: string;
 let running: Daemon[] = [];
@@ -65,7 +68,7 @@ async function freePort(): Promise<number> {
 /** Starts `dist/cli.js` with a minimal environment and tracks it for cleanup. */
 function spawnCli(args: string[], env: Record<string, string> = {}): Daemon {
   const child = spawn(process.execPath, [CLI, ...args], {
-    env: { PATH: process.env.PATH ?? '', HOME: home, ...env },
+    env: { PATH: process.env.PATH ?? '', HOME: home, USERPROFILE: home, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
