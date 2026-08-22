@@ -125,7 +125,7 @@ describe('the file', () => {
 
   test('survives a reopen — this is the whole reason it is a file', async () => {
     await db.setDocument('bitbucket', { baseUrl: 'https://git.example' });
-    await db.put('designs', [{ id: 'd1', name: 'form' }]);
+    await db.put('artifacts', [{ id: 'd1', name: 'form' }]);
     await db.close();
 
     const reopened = new StateDb(db.path);
@@ -133,7 +133,7 @@ describe('the file', () => {
       assert.deepEqual(await reopened.getDocument('bitbucket'), {
         baseUrl: 'https://git.example',
       });
-      assert.deepEqual(await reopened.getAll('designs'), [{ id: 'd1', name: 'form' }]);
+      assert.deepEqual(await reopened.getAll('artifacts'), [{ id: 'd1', name: 'form' }]);
     } finally {
       await reopened.close();
     }
