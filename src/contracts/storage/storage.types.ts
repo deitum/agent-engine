@@ -4,8 +4,8 @@
  *
  * The daemon is deliberately ignorant of what it stores. A collection is a
  * string and a record is an opaque JSON value, so adding an entity to the web
- * app (`designs`, whatever comes next) needs no change here and no change in the
- * daemon — exactly as `POST /mcp/tools` knows nothing about the servers it
+ * app (`artifacts`, whatever comes next) needs no change here and no change in
+ * the daemon — exactly as `POST /mcp/tools` knows nothing about the servers it
  * proxies. That is why the collection names and document keys declared in
  * `apps/web/src/shared/lib/storage/storage.schema.ts` are **not** mirrored into
  * this package: they are the web app's business, not the transport's.
