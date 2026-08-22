@@ -123,14 +123,75 @@ describe('java probe', () => {
   });
 });
 
+describe('python probe', () => {
+  const { probe } = specFor('python');
+
+  test('accepts an image that has python3 and pip', () => {
+    assert.equal(probe.check('pip 24.0 from /usr/lib/python3/dist-packages/pip', 0), null);
+  });
+
+  /** `gradle:` and `node:` images both carry python3 without pip. */
+  test('names pip when the interpreter is there without it', () => {
+    assert.match(probe.check('/usr/bin/python3: No module named pip', 1) ?? '', /no pip/);
+  });
+
+  test('says the image has no python3 rather than «install failed»', () => {
+    assert.match(probe.check('', 127) ?? '', /no python3/);
+  });
+});
+
 describe('install recipes', () => {
+  /**
+   * A recipe is a shell command string, and the only competent judge of one is a
+   * shell: `sh -n` parses without running. This is the check that a missing
+   * separator between two commands survives every other way — the install dies
+   * with «Syntax error», and the session reports a server that is unavailable
+   * for no stated reason.
+   */
+  const parses = (command: string): boolean => {
+    try {
+      execFileSync('sh', ['-n', '-c', command], { stdio: 'ignore' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  test('every install and launch command is one a shell can parse', () => {
+    for (const language of enabledLanguages(undefined)) {
+      for (const variant of specFor(language).variants) {
+        const install = variant.install({});
+        assert.ok(parses(install), `${language}/${variant.id} install: ${install}`);
+
+        const launch = variant.launch({ sessionId: 'probe' });
+        assert.ok(parses(launch), `${language}/${variant.id} launch: ${launch}`);
+      }
+    }
+  });
+
+  test('every probe command is one a shell can parse', () => {
+    for (const language of enabledLanguages(undefined)) {
+      const { command } = specFor(language).probe;
+      assert.ok(parses(command), `${language} probe: ${command}`);
+    }
+  });
+
+  /**
+   * `typescript@latest` is the native port: a platform binary and no
+   * `lib/tsserver.js`, which the language server refuses to initialize against.
+   * Unpinned, the recipe installs cleanly and fails at every start instead.
+   */
+  test('pins the TypeScript compiler to the major the server can drive', () => {
+    assert.match(specFor('typescript').variants[0].install({}), / typescript@5(?![\d.])/);
+  });
+
   test('the npm registry override reaches the command line', () => {
     const command = specFor('typescript').variants[0].install({
       npmRegistry: 'https://nexus.internal/repository/npm',
     });
 
     assert.match(command, /--registry 'https:\/\/nexus\.internal\/repository\/npm'/);
-    assert.match(command, /typescript-language-server typescript/);
+    assert.match(command, /typescript-language-server typescript@/);
   });
 
   test('the PyPI index override reaches the command line', () => {

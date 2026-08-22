@@ -24,6 +24,19 @@ const DEFAULT_PYPI_INDEX = 'https://pypi.org/simple';
 const DEFAULT_JDTLS_URL =
   'https://download.eclipse.org/jdtls/milestones/1.40.0/jdt-language-server-1.40.0-202409261450.tar.gz';
 
+/**
+ * The compiler installed next to `typescript-language-server`, pinned to the
+ * major it can drive.
+ *
+ * `typescript@7` — what `latest` resolves to now — is the native port: it ships a
+ * platform binary and no `lib/tsserver.js`, and the language server refuses to
+ * initialize against it («Could not find a valid TypeScript installation»).
+ * Unpinned, the recipe therefore installs cleanly and then fails at every start,
+ * which is the worst of the two failures to have. The pin lifts when the server
+ * learns to speak to the new compiler.
+ */
+const TSSERVER_COMPILER = 'typescript@5';
+
 /** The oldest JDK the current Eclipse JDT language server will run on. */
 export const MIN_JDTLS_JDK = 17;
 
@@ -138,7 +151,7 @@ const TYPESCRIPT: LspServerSpec = {
           `npm install -g --prefix ${LSP_CACHE_DIR}/node`,
           `--registry ${shellQuote(config.npmRegistry ?? DEFAULT_NPM_REGISTRY)}`,
           '--no-fund --no-audit --loglevel error',
-          'typescript-language-server typescript',
+          `typescript-language-server ${TSSERVER_COMPILER}`,
         ].join(' '),
       launch: () => `${LSP_CACHE_DIR}/node/bin/typescript-language-server --stdio`,
       // Prefer the checkout's own compiler when it has one. Passed through
@@ -168,9 +181,19 @@ const PYTHON: LspServerSpec = {
   extensions: ['.py', '.pyi'],
   languageId: () => 'python',
   probe: {
-    command: 'command -v python3 && python3 --version',
-    check: (_output, exitCode) =>
-      exitCode === 0 ? null : 'the container image has no python3 — the Python server cannot start',
+    // pip is probed too, not just the interpreter: a `gradle:` or `node:` image
+    // carries python3 without it, and both variants install through `python3 -m
+    // pip`. Without this the honest «the image has no pip» would reach the user
+    // as «could not install the server».
+    command: 'command -v python3 && python3 -m pip --version',
+    check: (output, exitCode) => {
+      if (exitCode === 0) {
+        return null;
+      }
+      return /no module named pip/i.test(output)
+        ? 'the container image has python3 but no pip — the Python server cannot be installed'
+        : 'the container image has no python3 — the Python server cannot start';
+    },
   },
   variants: [
     {
@@ -245,7 +268,7 @@ const JAVA: LspServerSpec = {
         // Either downloader, because neither is guaranteed: `gradle:` images
         // carry curl, some slim JDK images only wget.
         return [
-          `mkdir -p ${LSP_CACHE_DIR}/jdtls`,
+          `mkdir -p ${LSP_CACHE_DIR}/jdtls &&`,
           `{ command -v curl >/dev/null 2>&1 && curl -fsSL ${url} || wget -qO- ${url}; }`,
           `| tar -xz -C ${LSP_CACHE_DIR}/jdtls`,
         ].join(' ');
