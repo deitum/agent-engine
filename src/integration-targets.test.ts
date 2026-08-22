@@ -49,6 +49,9 @@ describe('Claude Code', () => {
     assert.equal(claude.global.commandsDir, '/Users/dev/.claude/commands');
     assert.equal(claude.global.agentsDir, '/Users/dev/.claude/agents');
     assert.equal(claude.global.pluginsDir, '/Users/dev/.claude/plugins');
+    // The only one that opens the package itself; nothing has to be declared.
+    assert.equal(claude.readsPluginPackages, true);
+    assert.equal(claude.declaresSkillPaths, false);
   });
 
   // The whole point of resolving on the daemon: a browser building this string
@@ -83,8 +86,19 @@ describe('OpenCode', () => {
     assert.equal(opencode.global.configPath, '/Users/dev/.config/opencode/opencode.json');
     assert.equal(opencode.global.mcpKey, 'mcp');
     assert.equal(opencode.global.skillsDir, '/Users/dev/.config/opencode/skills');
-    // Its `plugins/` holds JavaScript plugins, not Agent Plugins packages.
-    assert.equal(opencode.global.pluginsDir, null);
+    // Its `plugins/` holds JavaScript plugins as well, but the glob for those is
+    // `{plugin,plugins}/*.{ts,js}` — a package directory beside them is invisible
+    // to it, which is what makes the folder usable as storage.
+    assert.equal(opencode.global.pluginsDir, '/Users/dev/.config/opencode/plugins');
+  });
+
+  // Stored whole, then named in the document: OpenCode does not open a package,
+  // so `skills.paths` is what makes the skills inside it reachable.
+  test('stores a plugin package rather than discovering one', () => {
+    const opencode = targetOf(host(), 'opencode');
+
+    assert.equal(opencode.readsPluginPackages, false);
+    assert.equal(opencode.declaresSkillPaths, true);
   });
 
   test('obeys XDG_CONFIG_HOME', () => {
@@ -92,6 +106,7 @@ describe('OpenCode', () => {
 
     assert.equal(opencode.global.configPath, '/opt/cfg/opencode/opencode.json');
     assert.equal(opencode.global.skillsDir, '/opt/cfg/opencode/skills');
+    assert.equal(opencode.global.pluginsDir, '/opt/cfg/opencode/plugins');
   });
 
   test('OPENCODE_CONFIG overrides everything and names the file itself', () => {
@@ -103,6 +118,10 @@ describe('OpenCode', () => {
     assert.equal(opencode.global.configPath, '/etc/oc/custom.jsonc');
     // The suffix, not the target, decides whether comments are allowed.
     assert.equal(opencode.global.format, 'jsonc');
+    // It moves the *file*, not the package folders — those stay under the config
+    // home. Harmless only because what the document names is an absolute path.
+    assert.equal(opencode.global.pluginsDir, '/opt/cfg/opencode/plugins');
+    assert.equal(opencode.global.skillsDir, '/opt/cfg/opencode/skills');
   });
 
   // Both names are read; until one exists there is nothing to prefer, so the
@@ -119,6 +138,19 @@ describe('OpenCode', () => {
     const opencode = targetOf(windows(), 'opencode');
 
     assert.equal(opencode.global.configPath, 'C:\\Users\\Müller\\.config\\opencode\\opencode.json');
+    assert.equal(opencode.global.pluginsDir, 'C:\\Users\\Müller\\.config\\opencode\\plugins');
+  });
+
+  test('a project keeps its packages under .opencode', () => {
+    const existing = '/work/repo/opencode.json';
+    const opencode = targetOf(
+      host({ exists: (path) => path === existing }),
+      'opencode',
+      '/work/repo',
+    );
+
+    assert.equal(opencode.project?.configPath, existing);
+    assert.equal(opencode.project?.pluginsDir, '/work/repo/.opencode/plugins');
   });
 });
 
@@ -130,10 +162,21 @@ describe('Kilo Code', () => {
     assert.equal(kilo.global.format, 'jsonc');
     assert.equal(kilo.global.commandsDir, '/Users/dev/.config/kilo/commands');
     assert.equal(kilo.declaresCommands, false);
-    // The one target whose config can name an arbitrary skills folder.
     assert.equal(kilo.declaresSkillPaths, true);
     // Sub-agents go into the document instead.
     assert.equal(kilo.global.agentsDir, null);
+  });
+
+  // All three halves of one install, which is why the fixtures cannot treat Kilo
+  // as «OpenCode again»: the package is stored whole, its skills and sub-agents
+  // are named in the document, and its commands are still loose markdown.
+  test('stores a plugin package but still reads its commands as files', () => {
+    const kilo = targetOf(host(), 'kilo');
+
+    assert.equal(kilo.global.pluginsDir, '/Users/dev/.config/kilo/plugins');
+    assert.equal(kilo.readsPluginPackages, false);
+    assert.equal(kilo.declaresCommands, false);
+    assert.equal(kilo.declaresAgents, true);
   });
 
   test('KILO_CONFIG overrides the path', () => {
@@ -162,6 +205,7 @@ describe('Kilo Code', () => {
       '/work/repo',
     );
     assert.equal(nested.project?.configPath, '/work/repo/.kilo/kilo.jsonc');
+    assert.equal(nested.project?.pluginsDir, '/work/repo/.kilo/plugins');
   });
 });
 

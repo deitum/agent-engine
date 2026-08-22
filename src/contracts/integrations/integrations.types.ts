@@ -24,8 +24,8 @@ export type IntegrationScope = 'global' | 'project';
  *
  * A `null` folder is not «unknown» — it means the target has no such folder and
  * takes that part of its setup in the config document instead (OpenCode's
- * `command`) or has no concept of it at all (Kilo and OpenCode have no Agent
- * Plugins format).
+ * `command`) or has no concept of it at all (Claude Code installs plugins per
+ * user, so a project location has no plugins folder).
  */
 export interface IntegrationLocation {
   scope: IntegrationScope;
@@ -46,7 +46,16 @@ export interface IntegrationLocation {
   commandsDir: string | null;
   /** Sub-agent markdown, or `null` when sub-agents go into the config. */
   agentsDir: string | null;
-  /** Agent Plugins packages, or `null` when the target has no plugin format. */
+  /**
+   * Where an Agent Plugins package can live for this target, or `null` when
+   * this location has nowhere to put one.
+   *
+   * A **place**, not a format. Whether the target then finds what is inside the
+   * package by itself is {@link IntegrationTarget.readsPluginPackages}; where it
+   * does not, the folder is storage and the package's parts are named in the
+   * config document — which is what `declaresSkillPaths` and the `declares*`
+   * flags below are for.
+   */
   pluginsDir: string | null;
 }
 
@@ -62,8 +71,20 @@ export interface IntegrationTarget {
   /** Resolved only when the request named a project folder; `null` otherwise. */
   project: IntegrationLocation | null;
   /**
-   * True when the config can name arbitrary skill folders (Kilo's
-   * `skills.paths`). The others scan fixed locations only, so their skill
+   * True when the target discovers an Agent Plugins package by itself, given
+   * only the folder it sits in — Claude Code, which reads the manifest, the
+   * bundled skills, the commands and the `mcp.json` out of the package.
+   *
+   * False does **not** mean the package cannot be installed: it means
+   * `pluginsDir` is storage and nothing is wired up until the config document
+   * names the parts — `skills.paths` for the bundled skills, `command` / `agent`
+   * or loose markdown for the rest, `[mcpKey, …]` for the servers. The flags
+   * below say which of those this target takes and how.
+   */
+  readsPluginPackages: boolean;
+  /**
+   * True when the config can name arbitrary skill folders (the OpenCode family's
+   * `skills.paths`). Claude Code scans fixed locations only, so its skill
    * packages have to be written into `skillsDir` and nowhere else.
    */
   declaresSkillPaths: boolean;
