@@ -135,6 +135,10 @@ const claudeTarget = (host: HostFacts, projectDir: string | null): IntegrationTa
             // Plugins are installed per user, not per checkout.
             pluginsDir: null,
           }),
+    // The one target that opens an Agent Plugins package itself: drop the
+    // folder in `~/.claude/plugins` and it finds the manifest, the skills, the
+    // commands and the `mcp.json` without being told about any of them.
+    readsPluginPackages: true,
     declaresSkillPaths: false,
     declaresAgents: false,
     declaresCommands: false,
@@ -151,10 +155,18 @@ const claudeTarget = (host: HostFacts, projectDir: string | null): IntegrationTa
  *
  * `OPENCODE_CONFIG` names the config *file* outright and wins over everything;
  * otherwise the document is `opencode.json[c]` under the config home. Its
- * package folders use plural names (`skills`, `commands`, `agents`), and its
- * `plugins/` folder holds JavaScript plugins rather than Agent Plugins
- * packages — which is why `pluginsDir` is `null` and a plugin installed for
- * OpenCode is taken apart into the pieces it does read.
+ * package folders use plural names (`skills`, `commands`, `agents`).
+ *
+ * It has no Agent Plugins format — `plugins/` is where it looks for JavaScript
+ * plugins — but that folder is still where a package goes, because the glob is
+ * narrow: `{plugin,plugins}/*.{ts,js}`, one level deep, `.ts` and `.js` only
+ * (verified against OpenCode 1.18.19). A package directory sitting beside those
+ * files is invisible to it. What makes the package *legible* is `skills.paths`,
+ * which names arbitrary skill folders and takes an absolute path — so the
+ * package is stored whole and its parts are named in the document, rather than
+ * copied out of it. Should the plugin loader ever start matching directories,
+ * move this folder to `agent-plugins` and migrate the old name the way the
+ * `LEGACY_*` constants do elsewhere.
  */
 const opencodeTarget = (host: HostFacts, projectDir: string | null): IntegrationTarget => {
   const path = pathFor(host.platform);
@@ -182,7 +194,7 @@ const opencodeTarget = (host: HostFacts, projectDir: string | null): Integration
       skillsDir: path.join(dir, 'skills'),
       commandsDir: path.join(dir, 'commands'),
       agentsDir: path.join(dir, 'agents'),
-      pluginsDir: null,
+      pluginsDir: path.join(dir, 'plugins'),
     }),
     project:
       projectDir === null || projectConfig === null
@@ -195,11 +207,12 @@ const opencodeTarget = (host: HostFacts, projectDir: string | null): Integration
             skillsDir: path.join(projectDir, '.opencode', 'skills'),
             commandsDir: path.join(projectDir, '.opencode', 'commands'),
             agentsDir: path.join(projectDir, '.opencode', 'agents'),
-            pluginsDir: null,
+            pluginsDir: path.join(projectDir, '.opencode', 'plugins'),
           }),
-    // No key for skill folders: packages have to sit in one of the locations
-    // OpenCode scans, so `skillsDir` is not a free choice.
-    declaresSkillPaths: false,
+    readsPluginPackages: false,
+    // `skills.paths` names arbitrary folders, so a package need not sit in one
+    // of the locations OpenCode scans by itself.
+    declaresSkillPaths: true,
     declaresAgents: true,
     declaresCommands: true,
     declaresPermissions: true,
@@ -212,9 +225,12 @@ const opencodeTarget = (host: HostFacts, projectDir: string | null): Integration
  *
  * A fork of OpenCode, so the shape of the config is the same, but the
  * directories are its own: `.kilo/` wins over the project root, and it no
- * longer falls back to `.opencode`. `skills.paths` is the one config key among
- * the three targets that names arbitrary skill folders, which is why
- * `declaresSkillPaths` exists at all.
+ * longer falls back to `.opencode`.
+ *
+ * The hybrid of the three: a plugin package is stored whole like OpenCode's and
+ * its skills and sub-agents are named in the document — but its slash commands
+ * are still loose markdown, because Kilo reads commands only as files. All three
+ * halves of one install.
  */
 const kiloTarget = (host: HostFacts, projectDir: string | null): IntegrationTarget => {
   const path = pathFor(host.platform);
@@ -245,7 +261,7 @@ const kiloTarget = (host: HostFacts, projectDir: string | null): IntegrationTarg
       skillsDir: path.join(dir, 'skills'),
       commandsDir: path.join(dir, 'commands'),
       agentsDir: null,
-      pluginsDir: null,
+      pluginsDir: path.join(dir, 'plugins'),
     }),
     project:
       projectDir === null || projectConfig === null
@@ -258,8 +274,9 @@ const kiloTarget = (host: HostFacts, projectDir: string | null): IntegrationTarg
             skillsDir: path.join(projectDir, '.kilo', 'skills'),
             commandsDir: path.join(projectDir, '.kilo', 'commands'),
             agentsDir: null,
-            pluginsDir: null,
+            pluginsDir: path.join(projectDir, '.kilo', 'plugins'),
           }),
+    readsPluginPackages: false,
     declaresSkillPaths: true,
     declaresAgents: true,
     // Kilo reads slash commands only as files, never from the document.

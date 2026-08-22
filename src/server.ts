@@ -46,6 +46,8 @@ import {
   type IntegrationConfigWriteResponse,
   type IntegrationListRequest,
   type IntegrationListResponse,
+  type LocalFilesDeleteRequest,
+  type LocalFilesDeleteResponse,
   type LocalFilesWriteRequest,
   type LocalFilesWriteResponse,
   type LocalPluginDeleteRequest,
@@ -98,7 +100,7 @@ import {
 } from './integration-config';
 import { listIntegrationTargets } from './integration-targets';
 import { chatCompletion, listModels } from './llm/llm-client';
-import { writeLocalFiles } from './local-files';
+import { deleteLocalFiles, writeLocalFiles } from './local-files';
 import { deleteLocalPlugin, listLocalPlugins, writeLocalPlugin } from './local-plugins';
 import { deleteLocalSkill, listLocalSkills, writeLocalSkill } from './local-skills';
 import { PACKAGE_NAME, PACKAGE_VERSION } from './package.constants';
@@ -714,6 +716,13 @@ export function createEngineServer(options: EngineServerOptions): EngineServer {
     if (req.method === 'POST' && pathname === '/files/write') {
       const request = await readJson<LocalFilesWriteRequest>(req);
       const response: LocalFilesWriteResponse = writeLocalFiles(request);
+      sendJson(res, 200, response);
+      return;
+    }
+
+    if (req.method === 'POST' && pathname === '/files/delete') {
+      const request = await readJson<LocalFilesDeleteRequest>(req);
+      const response: LocalFilesDeleteResponse = deleteLocalFiles(request);
       sendJson(res, 200, response);
       return;
     }

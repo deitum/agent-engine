@@ -33,3 +33,27 @@ export interface LocalFilesWriteResponse {
   /** Relative paths written, in request order — what the UI reports back. */
   paths: string[];
 }
+
+/**
+ * `POST /files/delete` — take those same loose files back out.
+ *
+ * The other half of `/files/write`, and the reason uninstalling a bundle can be
+ * exact: a target that reads its commands as files has no config key to clear,
+ * so without this route the markdown outlives the thing that put it there.
+ *
+ * A path that is already gone is not an error — removing what is not there is
+ * the outcome the caller asked for, and an uninstall that fails halfway because
+ * the user tidied one file by hand is worse than one that finishes.
+ */
+export interface LocalFilesDeleteRequest {
+  dir: string;
+  /** Paths relative to `dir`, forward-slashed — same rule as a write. */
+  paths: string[];
+}
+
+export interface LocalFilesDeleteResponse {
+  /** The absolute directory (after `~` expansion). */
+  dir: string;
+  /** The paths that were actually on disk and are now gone. */
+  removed: string[];
+}

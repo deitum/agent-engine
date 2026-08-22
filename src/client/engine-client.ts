@@ -36,6 +36,8 @@ import {
   type IntegrationConfigWriteResponse,
   type IntegrationListRequest,
   type IntegrationListResponse,
+  type LocalFilesDeleteRequest,
+  type LocalFilesDeleteResponse,
   type LocalFilesWriteRequest,
   type LocalFilesWriteResponse,
   type LocalPluginDeleteRequest,
@@ -281,6 +283,9 @@ export class EngineClient {
   readonly files = {
     write: (request: LocalFilesWriteRequest, options?: RequestOptions) =>
       this.json<LocalFilesWriteResponse>('/files/write', request, options),
+    /** Takes those same files back out; a path already gone is not an error. */
+    delete: (request: LocalFilesDeleteRequest, options?: RequestOptions) =>
+      this.json<LocalFilesDeleteResponse>('/files/delete', request, options),
   };
 
   // ─── other agents on this machine ────────────────────────────────────────
